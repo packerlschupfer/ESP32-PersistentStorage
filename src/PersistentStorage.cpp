@@ -873,12 +873,13 @@ void PersistentStorage::publishAllGrouped() {
     publishGroupedCategory("heating");
     publishGroupedCategory("pid");
     publishGroupedCategory("sensor");
-    
+    publishGroupedCategory("system");
+
     // Send completion message
     JsonDocument completeDoc;  // ArduinoJson v7
     completeDoc["status"] = "complete";
     completeDoc["timestamp"] = millis();
-    completeDoc["groupsPublished"] = 4;
+    completeDoc["groupsPublished"] = 5;
     
     char buffer[256];
     serializeJson(completeDoc, buffer, sizeof(buffer));
@@ -1243,9 +1244,9 @@ void PersistentStorage::processCommandQueue() {
                 // Check if this is a category/group query (no slash = group name)
                 std::string paramName(cmd.paramName);
                 if (paramName.find('/') == std::string::npos) {
-                    // No slash - might be a group name like "heating", "wheater", "pid", "sensor"
+                    // No slash - might be a group name like "heating", "wheater", "pid", "sensor", "system"
                     if (paramName == "heating" || paramName == "wheater" ||
-                        paramName == "pid" || paramName == "sensor") {
+                        paramName == "pid" || paramName == "sensor" || paramName == "system") {
                         PSTOR_LOG_I("GET group: %s", paramName.c_str());
                         publishGroupedCategory(paramName);
                     } else {
