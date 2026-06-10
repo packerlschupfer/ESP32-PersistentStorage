@@ -66,7 +66,7 @@ PersistentStorage storage("example", "device/params");
 // Example settings
 struct Settings {
     float temperature = 22.0;
-    int counter = 0;
+    int32_t counter = 0;
     char name[32] = "TestDevice";
     uint8_t config[16] = {0x01, 0x02, 0x03, 0x04};
 } settings;
