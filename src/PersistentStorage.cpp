@@ -1310,16 +1310,28 @@ void PersistentStorage::processCommandQueue() {
             }
 
             case ParameterCommand::GET: {
-                // Check if this is a category/group query (no slash = group name)
+                // A name without a slash is a group read if any registered parameter
+                // sits under it. This used to test a hardcoded list of five groups
+                // (heating, wheater, pid, sensor, system), so every other real group -
+                // preheat, pump, boiler, h, w, syslog, all of which get/all publishes -
+                // fell through to publishUpdate() on a parameter that does not exist
+                // and returned NOTHING, with no error to the caller. Derive the groups
+                // the same way publishAllGrouped() does so the two cannot drift apart.
                 std::string paramName(cmd.paramName);
                 if (paramName.find('/') == std::string::npos) {
-                    // No slash - might be a group name like "heating", "wheater", "pid", "sensor", "system"
-                    if (paramName == "heating" || paramName == "wheater" ||
-                        paramName == "pid" || paramName == "sensor" || paramName == "system") {
+                    const std::string prefix = paramName + "/";
+                    bool isGroup = false;
+                    for (const auto& pair : parameters_) {
+                        if (pair.first.rfind(prefix, 0) == 0) {
+                            isGroup = true;
+                            break;
+                        }
+                    }
+                    if (isGroup) {
                         PSTOR_LOG_I("GET group: %s", paramName.c_str());
                         publishGroupedCategory(paramName);
                     } else {
-                        // Unknown group, try as exact parameter name
+                        // Not a group - try as an exact parameter name
                         publishUpdate(paramName);
                     }
                 } else {

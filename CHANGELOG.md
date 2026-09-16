@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `get/<group>` now works for every registered group, not just five hardcoded ones.
+  The GET handler tested `paramName` against a literal list (`heating`, `wheater`,
+  `pid`, `sensor`, `system`), so a read of any other real group - `preheat`, `pump`,
+  `boiler`, and any project-specific prefix - fell through to `publishUpdate()` on a
+  parameter that does not exist and returned **nothing at all**, with no error to the
+  caller, even though `get/all` happily publishes those same groups. Groups are now
+  derived from the registered parameter names, the same way `publishAllGrouped()`
+  does, so the two cannot drift apart as parameters are added.
 - `COMMAND_QUEUE_SIZE` raised from 5 to 16 (~116 B per slot, ~1.9 kB total). A single
   client burst could overrun the queue: `handleMqttCommand()` enqueues with
   `xQueueSend(..., 0)` and drops the NEWEST command on overflow, notifying neither the
