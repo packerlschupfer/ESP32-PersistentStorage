@@ -297,7 +297,14 @@ private:
     };
     
     // Constants
-    static constexpr size_t COMMAND_QUEUE_SIZE = 5;  // Reduced from 10
+    // 16 slots (~116 B each, ~1.9 kB total). Was 5, which a single client burst
+    // overran: handleMqttCommand() enqueues with xQueueSend(..., 0) and drops the
+    // NEWEST command on overflow, telling neither the caller nor the broker. A
+    // "get/all plus 8 single reads" burst therefore lost the last 4 reads, silently
+    // (measured 2026-09-16). processCommandQueue() drains only 5 per call, and a
+    // pipelined client delivers all commands before the consuming task is even
+    // scheduled, so capacity - not drain rate - is what has to cover the burst.
+    static constexpr size_t COMMAND_QUEUE_SIZE = 16;
     static constexpr size_t PARAMS_PER_CHUNK = 5;
     
     // NVS namespace and preferences

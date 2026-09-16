@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- `COMMAND_QUEUE_SIZE` raised from 5 to 16 (~116 B per slot, ~1.9 kB total). A single
+  client burst could overrun the queue: `handleMqttCommand()` enqueues with
+  `xQueueSend(..., 0)` and drops the NEWEST command on overflow, notifying neither the
+  caller nor the broker, so the commands simply never happened. Measured on a live
+  device: a `get/all` followed immediately by 8 single `get/<param>` reads lost exactly
+  the last 4 reads. `processCommandQueue()` drains only 5 commands per call, and a
+  pipelined client delivers a whole burst before the consuming task is scheduled, so
+  queue capacity - not drain rate - has to absorb it.
+
 ## [0.1.0] - 2025-12-04
 
 ### Added
