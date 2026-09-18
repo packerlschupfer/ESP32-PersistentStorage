@@ -644,7 +644,7 @@ PersistentStorage::Result PersistentStorage::loadParameter(ParameterInfo& param)
             // path already enforces these constraints, the load path did not.
             const auto& r = param.constraints.intRange;
             if (r.min < r.max && (v < r.min || v > r.max)) {
-                PSTOR_LOG_W("NVS int '%s' out of range - using default", param.name);
+                PSTOR_LOG_W("NVS int '%s' out of range - using default", param.name.c_str());
                 v = defaultVal;
             }
             *(int32_t*)param.dataPtr = v;
@@ -656,7 +656,7 @@ PersistentStorage::Result PersistentStorage::loadParameter(ParameterInfo& param)
             float v = preferences_.getFloat(key.c_str(), defaultVal);
             const auto& r = param.constraints.floatRange;
             if (!std::isfinite(v) || (r.min < r.max && (v < r.min || v > r.max))) {
-                PSTOR_LOG_W("NVS float '%s' invalid/out-of-range - using default", param.name);
+                PSTOR_LOG_W("NVS float '%s' invalid/out-of-range - using default", param.name.c_str());
                 v = defaultVal;
             }
             *(float*)param.dataPtr = v;
