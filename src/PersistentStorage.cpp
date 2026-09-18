@@ -27,6 +27,53 @@
 #include <esp_task_wdt.h>
 #include <nvs.h>
 
+namespace {
+
+// snprintf() for a plain concatenation is expensive in the one resource these paths are
+// short of: it pulls newlib's _svfprintf_r, an 800 B stack frame, plus its malloc tail,
+// onto whichever task is calling. publishGroupedCategory() and publishAllParameters() run
+// on PersistentStorageTask, which carries the largest single frame in the firmware
+// (processCommandQueue, 1328 B), and sanitizeNvsKey() runs on every parameter load and
+// save. None of these formats anything a few lines of code cannot.
+//
+// Both helpers truncate and always NUL-terminate, matching snprintf's behaviour so the
+// failure mode is unchanged.
+
+void appendTo(char* out, size_t size, size_t& len, const char* s) {
+    if (s == nullptr) return;
+    while (*s != '\0' && len + 1 < size) out[len++] = *s++;
+}
+
+/// Builds "<prefix>/status/<leaf>".
+void buildStatusTopic(char* out, size_t size, const char* prefix, const char* leaf) {
+    if (size == 0) return;
+    size_t len = 0;
+    appendTo(out, size, len, prefix);
+    appendTo(out, size, len, "/status/");
+    appendTo(out, size, len, leaf);
+    out[len] = '\0';
+}
+
+/// Builds "p<decimal>", replacing snprintf(..., "p%lu", hash).
+/// UINT32_MAX is 10 digits, so 12 bytes always suffice and the digits are never
+/// truncated - which matters here, because a truncated key is a DIFFERENT NVS key.
+void buildHashKey(char* out, size_t size, uint32_t hash) {
+    if (size == 0) return;
+    if (size < 12) { out[0] = '\0'; return; }   // caller's buffer is too small to be safe
+    char digits[10];
+    size_t n = 0;
+    do {
+        digits[n++] = static_cast<char>('0' + (hash % 10));
+        hash /= 10;
+    } while (hash != 0 && n < sizeof(digits));
+    size_t len = 0;
+    out[len++] = 'p';
+    while (n > 0) out[len++] = digits[--n];
+    out[len] = '\0';
+}
+
+}  // namespace
+
 // Constructor
 PersistentStorage::PersistentStorage(const char* namespaceName, const char* mqttPrefix) 
     : namespaceName_(namespaceName)
@@ -613,7 +660,7 @@ std::string PersistentStorage::sanitizeNvsKey(const std::string& name) const {
     }
     
     char buf[16];
-    snprintf(buf, sizeof(buf), "p%lu", (unsigned long)hash);
+    buildHashKey(buf, sizeof(buf), hash);
     return std::string(buf);
 }
 
@@ -1042,7 +1089,7 @@ void PersistentStorage::publishGroupedCategory(const std::string& category) {
         // Use static buffer to avoid stack allocation each call
         static char buffer[256];
         char topicBuf[64];
-        snprintf(topicBuf, sizeof(topicBuf), "%s/status/%s", mqttPrefix_.c_str(), category.c_str());
+        buildStatusTopic(topicBuf, sizeof(topicBuf), mqttPrefix_.c_str(), category.c_str());
         serializeJson(doc, buffer, sizeof(buffer));
 
         bool success = false;
@@ -1215,8 +1262,8 @@ void PersistentStorage::continueAsyncPublish() {
         
         // Use static buffers to avoid dynamic allocation
         char topicBuffer[128];
-        snprintf(topicBuffer, sizeof(topicBuffer), "%s/status/%s", 
-                 mqttPrefix_.c_str(), pair.first.c_str());
+        buildStatusTopic(topicBuffer, sizeof(topicBuffer),
+                         mqttPrefix_.c_str(), pair.first.c_str());
         
         char paramBuffer[512];
         serializeJson(paramDoc, paramBuffer, sizeof(paramBuffer));
